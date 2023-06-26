@@ -1,0 +1,82 @@
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+</head>
+<body>
+    <canvas width=900 height=600></canvas>
+<script type="module">
+async function dr() {
+let C = document.querySelector('canvas').getContext(`webgpu`),
+code=`
+
+struct VSOut {
+  @builtin(position) pos: vec4f,
+  @location(0) @interpolate(flat) fi: i32,
+};
+
+@vertex
+fn vs( @builtin(vertex_index) vi: u32 ) -> VSOut {
+
+  // inter-stage variables are interpolated. In flat interpolation mode,
+  // the values passed to the fragment shader are from the "provoking vertex"
+  // which is the value set on the 1st vertex of the triangle
+  var vsOut: VSOut;
+  vsOut.fi = 1;
+  if (vi > 2) {
+    vsOut.fi = 2;
+  }
+
+  if(vi<3){
+    var T = array<vec2f, 3>( vec2f(0,0), vec2f(.4,.7), vec2f(.8,0) );
+    vsOut.pos = vec4f(T[vi],0,1);
+    return vsOut;
+  };
+  var j=array<vec2f,3>(vec2f(.4,.7), vec2f(.8,0),vec2f(0.6,-0.5));
+  vsOut.pos=vec4f(j[vi-3],0,1);
+  return vsOut;
+}
+
+@fragment
+fn fs(vsOut: VSOut) -> @location(0) vec4f {
+  if(vsOut.fi == 1){ return vec4f(.7,.2,.2,.5); }; // orange // color for 1st triangle 🔺
+  return vec4f(.3,.6,.4,.5);                 // color for 2nd triangle
+}`,
+format = `bgra8unorm`,
+
+ adapter = await navigator.gpu.requestAdapter(),
+ device = await adapter.requestDevice(),
+      Q = device.queue,
+      A = {loadOp: `clear`, storeOp: `store`}, // Attachments
+      O = {colorAttachments: [ A ]},           // Render Pass Descriptor
+     E, R,
+ module = device.createShaderModule({ code }),
+      P = device.createRenderPipeline({ layout: `auto`, primitive: { topology: `triangle-list` },
+             vertex: { module, entryPoint: `vs`, },
+           fragment: { module, entryPoint: `fs`, targets: [{ format }] }
+          });
+
+C.configure({ device, format });
+
+function F(){
+  A.view = C.getCurrentTexture().createView();
+  
+  E = device.createCommandEncoder();
+  R = E.beginRenderPass(O);
+  R.setPipeline(P);
+  
+  R.draw(6);
+  R.end();
+  Q.submit([E.finish()]);
+  
+  requestAnimationFrame(F)
+}
+
+
+F();}
+dr();
+
+</script>
+</body>
+</html>
